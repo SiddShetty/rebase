@@ -1,0 +1,7 @@
+{
+  "app": "node build/cdkapp.js",
+  "context": {
+    "serviceName": "adam"
+  },
+  "progress": "events"
+}

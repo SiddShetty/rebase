@@ -1,0 +1,190 @@
+version: 2.1
+
+references:
+  working_dir: &working_dir
+    ~/repo
+  python_path: &python_path
+    /home/circleci/repo/src
+
+
+executors:
+  python:
+    resource_class: small
+    docker:
+      - image: circleci/python:3.6.7
+  python-node:
+    resource_class: small
+    docker:
+      - image: circleci/python:3.6.7-node
+  node:
+    resource_class: small
+    docker:
+      - image: circleci/node:lts
+
+
+orbs:
+  aws-cli: circleci/aws-cli@0.1.15
+
+commands:
+  export-stage:
+    steps:
+      - run:
+          name: Export Stage
+          command: |
+            echo $CIRCLE_WORKFLOW_ID
+            export id=$(echo $CIRCLE_WORKFLOW_ID | cut -d: -f2 | cut -d- -f1)
+            echo "export STAGE=test-${id}" >> $BASH_ENV
+            source $BASH_ENV
+      - run: echo $STAGE
+
+  node-restore-cache:
+    steps:
+      - restore_cache:
+          key: dependency-cache-v1-{{ checksum "package.json" }}
+      - run:
+          name: npm rc setup
+          command: |
+            echo $NPM_RC > .npmrc
+            npm config set @amenity:registry https://amenity.jfrog.io/amenity/api/npm/npm-amenity
+      - run:
+          name: Install npm packages
+          command: npm ci
+      - save_cache:
+          key: dependency-cache-v1-{{ checksum "package.json" }}
+          paths:
+            - node_modules
+            - ~/.npm
+
+  python-restore-cache:
+    steps:
+      - run:
+          name: prepate for chache restore
+          command: |
+            sudo chown -R circleci /usr/local/bin
+            sudo chown -R circleci /usr/local/lib
+      - restore_cache:
+          key: dependency-cache-v1-{{ checksum "Pipfile.lock" }}
+      - run:
+          name: install dependencies
+          command: |
+            export PIPENV_VENV_IN_PROJECT=1
+            sudo pip install pipenv
+            pipenv sync -d
+      - save_cache:
+          key: dependency-cache-v1-{{ checksum "Pipfile.lock" }}
+          paths:
+            - ".venv"
+            - "/usr/local/bin"
+            - "/usr/local/lib/python3.6/site-packages"
+
+  checkout-and-restore-cache:
+    steps:
+      - checkout
+      - python-restore-cache
+      - node-restore-cache
+
+jobs:
+  integration-tests:
+    executor: python-node
+    working_directory: *working_dir
+    environment:
+      AWS_REGION: eu-central-1
+      PYTHONPATH: *python_path
+      SERVICE_NAME: adam
+    steps:
+      - checkout-and-restore-cache
+      - export-stage
+      - aws-cli/install
+      - aws-cli/configure
+      - run:
+          name: CDK deploy
+          command: npm run cdk:deploy
+      - run:
+          name: Serverless deploy
+          command: npm run sls:deploy
+      - run:
+          name: run integration test
+          command: pipenv run pytest src/tests/integration --cov-branch  --junitxml=test-reports/it-junit.xml
+      - run:
+          name: sleep before lambda test (DNS)
+          command: sleep 30
+      - run:
+          name: run lambda test
+          command: pipenv run pytest src/tests/lambdas --junitxml=test-reports/it-junit.xml
+      - persist_to_workspace:
+          root: *working_dir
+          paths:
+             - "**"
+      - store_test_results:
+          path: test-reports
+      - run:
+          name: tear down sls
+          command: npm run sls:destroy
+          when: always
+      - run:
+          name: tear down cdk
+          command: npm run cdk:destroy
+          when: always
+  unit-tests:
+    working_directory: *working_dir
+    executor: python-node
+    environment:
+      PYTHONPATH: *python_path
+      SERVICE_NAME: adam
+    steps:
+      - checkout-and-restore-cache
+      - export-stage
+      - run:
+          name: PyLint
+          command: pipenv run pylint src
+      - run:
+          name: Black
+          command: pipenv run black src --check --config=./pyproject.toml
+      - run:
+          name: TS lint
+          command: npm run lint
+      - run:
+          name: run unit tests
+          command: |
+            mkdir test-reports
+            pipenv run pytest src/tests/unit --cov=./src --cov-branch --cov-report xml:coverage.xml --junitxml=test-reports/unit-junit.xml
+      - store_test_results:
+          path: test-reports
+  deploy:
+    executor: node
+    working_directory: *working_dir
+    environment:
+      AWS_REGION: us-east-1
+      SERVICE_NAME: adam
+      STAGE: main
+    steps:
+      - attach_workspace:
+          at: *working_dir
+      - aws-cli/install
+      - aws-cli/configure
+      - run:
+          name: CDK diff check
+          command: npm run cdk:diff || true
+      - run:
+          name: CDK deploy to Prod
+          command: npm run cdk:deploy
+      - run:
+          name: Serverless deploy to Prod
+          command: npm run sls:deploy
+
+workflows:
+  version: 2
+  build-and-deploy:
+    jobs:
+      - unit-tests:
+          context: amenity
+      - integration-tests:
+          context: ops
+      - deploy:
+          context: PRODUCTION
+          requires:
+            - unit-tests
+            - integration-tests
+          filters:
+            branches:
+              only: master

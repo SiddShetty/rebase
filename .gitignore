@@ -1,0 +1,61 @@
+# Distribution / packaging
+.DS_Store
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+*.pyc
+*.idea
+idea/
+.venv/
+
+# Serverless directories
+.serverless
+
+node_modules
+
+.ropeproject
+*.sw[a-p]
+.cache
+
+src/**/Pipfile
+src/**/.venv
+
+ci/cicd.js
+state/*.js
+*.d.ts
+cdkapp.js
+cdk.out/
+cdk/*.js
+
+test-reports/
+
+# Coverage
+coverage.xml
+.coverage
+
+# VisualStudioCode
+.vscode/**
+!.vscode/settings.json
+
+#Mypy
+.mypy_cache
+
+#Pytest
+.pytest_cache
+
+#Env files
+.env
+
+!prettier.config.js

@@ -1,0 +1,19 @@
+[MESSAGES CONTROL]
+disable=
+    missing-docstring,
+    too-few-public-methods,
+    # This is a conflict between pyLint and black.
+    # pyLint think the spacing is wrong, but this is a black style.
+    # because we use black we don't need the space check in pyLint
+    # https://github.com/psf/black/issues/48
+    # https://github.com/PyCQA/pylint/issues/289
+    C0330
+
+[FORMAT]
+max-line-length=100
+
+[BASIC]
+good-names=e, logger
+
+[SIMILARITIES]
+ignore-imports=yes

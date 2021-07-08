@@ -1,0 +1,28 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[[source]]
+name = "artifactory"
+url = "https://developer:${ARTIFACTORY_PWD}@amenity.jfrog.io/amenity/api/pypi/pypi/simple"
+verify_ssl = true
+
+[dev-packages]
+pytest = "*"
+tenacity = "*"
+lambdas_test = {index = "artifactory", version = "~=0.1"}
+pytest-cov = "*"
+coverage = "*"
+black = "==19.3b0"
+pylint = "*"
+
+[packages]
+requests = "~=2.24.0"
+boto3 = "*"
+urllib3 = "~=1.25.0"
+lambdas = {index = "artifactory", version = "~=2.1.0"}
+simplejson = "*"
+
+[requires]
+python_version = "3.6"
