@@ -31,3 +31,5 @@ This is template repository backed in the basic serverless setup. batteries incl
 5. Go to project in [circle ci](https://circleci.com/gh/amenityllc) and `add project`
 
 
+Added a line to the Readme
+
